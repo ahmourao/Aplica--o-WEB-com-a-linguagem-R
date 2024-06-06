@@ -1,0 +1,1078 @@
+---
+title: "Criador de planilhas e gráficos do websai"
+author: "Ana Moura"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    df_print: paged
+  word_document: default
+---
+# Bibliotecas necessárias:  
+As bibliotecas usadas são: xlsx, r2excel, tidyverse, dplyr e ggplot2.  
+
+ * Para lidar com arquivos excel:  
+    - xlsx  
+    - r2excel(precisa do pacote anterior para ser usado)  
+    
+ * Para manipular data frame; 
+    - tidyverse  
+    - dplyr  
+    
+ * Para criar gráficos:  
+    - ggplot2   
+
+```{r message=FALSE, warning=FALSE}
+rm(list = ls())
+library('xlsx')
+#library('devtools') #serve para baixa o r2excel
+#devtools::install_github("kassambara/r2excel")
+library('r2excel') #depende do pacote xlsx
+library('tidyverse') #usar o pipe %>% 
+library('dplyr') # usar função select, filter e rename
+library('ggplot2')
+library('scales')
+```
+
+# Links úteis  
+* Manipulação de dados:  
+    - https://rstudio-education.github.io/tidyverse-cookbook/transform-tables.html#select-columns-by-integer-position  
+    - https://sparkbyexamples-com.translate.goog/r-programming/add-column-to-dataframe-in-r/?_x_tr_sl=auto&_x_tr_tl=pt&_x_tr_hl=pt-BR (Traduzido)  
+* Gráfico de Pizza:  
+    - https://stackoverflow.com/questions/62173825/ggplot2-geom-text-position-in-pie-chart (Rótulos de porcentagem centralizados em cada fatia)  
+    - https://stackoverflow.com/questions/14622421/how-to-change-legend-title-in-ggplot (Mudar a Legenda)
+    - https://ggplot2.tidyverse.org/reference/ggtheme.html (temas para gráficos em geral (ggplot2))
+    - https://ggplot2-tidyverse-org.translate.goog/reference/theme.html?_x_tr_sl=auto&_x_tr_tl=pt&_x_tr_hl=pt-BR (Modificar componentes de um tema)  
+    - https://ggplot2-tidyverse-org.translate.goog/reference/element.html?_x_tr_sl=auto&_x_tr_tl=pt&_x_tr_hl=pt-BR (Elementos de um tema)
+* R markdown e R notebook:  
+    - Traduzido  
+        + https://1-uc--r-github-io.translate.goog/r_notebook?_x_tr_enc=1&_x_tr_sl=auto&_x_tr_tl=pt&_x_tr_hl=pt-BR  
+        + https://1-uc--r-github-io.translate.goog/r_markdown?_x_tr_sl=auto&_x_tr_tl=pt&_x_tr_hl=pt-BR&_x_tr_enc=1  
+    - Em inglês  
+        + https://uc-r.github.io/r_notebook  
+* Excell:  
+    - http://www.sthda.com/english/wiki/r-xlsx-package-a-quick-start-guide-to-manipulate-excel-files-in-r#add-a-title-into-a-worksheet  
+    - https://www-sthda-com.translate.goog/english/wiki/r2excel-read-write-and-format-easily-excel-files-using-r-software?_x_tr_sch=http&_x_tr_sl=auto&_x_tr_tl=pt&_x_tr_hl=pt-BR  
+
+
+# Funções  
+* Renomear Respostas  
+    - 2 tipos:  
+        - A - Sim, B - Não  
+    - 6 tipos:  
+        - A - Excelente, B - Muito bom, C - Regular, D - Insuficiente, E - Não se aplica, F - Não sei responder  
+        - A - Sempre, B - Quase sempre, C - Algumas vezes, D - Muito raramente  
+* Excluir colunas totais em que possuem valores nulos  
+* Gerar gráfico  
+* Gerar tabela total auxiliar do gráfico, onde eu somo cada variável e calculo o seu respectivo porcentual  
+* Funçaõ de adicionar título a planilhas
+```{r message=FALSE, warning=FALSE}
+renomear.Respostas.1 <-function(df){
+  df <- df %>% 
+    rename("Excelente" = A, "Muito bom" = B, "Regular" = C,
+           "Insuficiente" = D, "Nao se aplica" = E, "Nao sei responder" = F)
+  return (df)
+}
+
+
+renomear.Respostas.2 <-function(df){
+   df <- df %>% 
+     rename("Sempre" = A, "Quase sempre" = B,
+            "Algumas vezes" = C, "Muito raramente" = D)
+   return (df)
+}
+
+renomear.Respostas.3 <-function(df){
+   df <- df %>% 
+     rename("Sim" = 5, "Não" = 6)
+   return (df)
+}
+
+excluir.colunas.1 <- function(df){
+  #se a minha tabela tiver 10 colunas total e não tem a variável NumeroPergunta
+  df.Total <- c(rep(1,4),apply(df[,5:ncol(df)],2, sum))
+  df.Total
+  indices <- which(df.Total>0)
+  df <- df %>% 
+    select(indices)
+  return(df)
+}
+
+excluir.colunas.2 <- function(df){
+  #se a minha tabela tiver 12 colunas total e possui a variável NumeroPergunta
+  df.Total <- c(rep(1,5),apply(df[,6:ncol(df)],2, sum))
+  df.Total
+  indices <- which(df.Total>0)
+  df <- df %>% 
+    select(indices)
+  return(df)
+}
+
+
+gerar.Grafico <- function(grafico, NomeGrafico, Texto){
+  png(NomeGrafico)
+  ggplot(grafico, aes(x="", y=grafico$porcentual, fill=reorder(Legenda, porcentual))) + 
+    geom_bar(stat = "identity", color = "white") + 
+    coord_polar(theta = "y", start = 0) + theme(axis.title.x = element_blank(), axis.title.y = element_blank(), 
+                                                panel.grid=element_blank(), axis.ticks = element_blank(), 
+                                                plot.title=element_text(size=14, face="bold"), 
+                                                axis.line = element_blank(), 
+                                                axis.text.x=element_blank(), axis.text = element_blank(),
+                                                panel.background = element_blank()) +
+      geom_text(aes(x = 1.7, label = scales::percent(grafico$porcentual/100)), size=6, 
+              position = position_stack(vjust = .5)) + 
+      ggtitle(Texto) +
+      guides(fill=guide_legend(title="Legenda"))
+      
+}
+
+tabela.auxilar <- function(df){
+    df.novo <- as.data.frame(apply(df[,5:ncol(df)],2, sum))
+    df.novo <- rename(df.novo, "Frequencia" = 1)
+    total <- sum(df.novo$Frequencia)
+    df.novo <- mutate(df.novo, porcentual = round((Frequencia/total)*100))
+    	df.novo <- mutate(df.novo, Legenda = rownames(df.novo))
+	df.novo <- df.novo[,c(3,1,2)]
+	rownames(df.novo) = NULL
+	df.novo$Legenda <- factor(df.novo$Legenda, levels = as.character(df.novo$Legenda))
+	return (df.novo)
+}
+
+xlsx.addTitle <- function(sheet, rowIndex, title, titleStyle){
+  rows <-createRow(sheet,rowIndex=rowIndex)
+  sheetTitle <-createCell(rows, colIndex=1)
+  setCellValue(sheetTitle[[1,1]], title)
+  setCellStyle(sheetTitle[[1,1]], titleStyle)
+}
+```
+
+
+# Criação do Excell workbook  
+Defino o nome do arquivo em uma variável "filename" e crio um workbook.
+```{r}
+filename <- "Graficos_Ana.xlsx"
+wb <- createWorkbook(type="xlsx")
+```
+
+# Estilos das células  
+http://www.sthda.com/english/wiki/r-xlsx-package-a-quick-start-guide-to-manipulate-excel-files-in-r#simple-r-function-to-export-quickly-multiple-data-sets-to-the-same-excel-workbook  
+Aqui eu defino variáveis do tipo CellStyle que definem os estilos das células.
+```{r}
+nomes.colunas <- CellStyle(wb) + 
+  Font(wb, heightInPoints = 14, isBold = T) +
+  Border(color = "black", position = c("BOTTOM","LEFT", "TOP", "RIGHT"), pen = "BORDER_MEDIUM")
+
+TITLE_STYLE <- CellStyle(wb) +
+    Font(wb,  heightInPoints=12, isBold=TRUE, underline=1) +
+    Fill(backgroundColor="black", foregroundColor="yellow",
+      pattern="SOLID_FOREGROUND") +
+    Border(color = "black", position = c("BOTTOM","LEFT", "TOP", "RIGHT"), pen = "BORDER_MEDIUM")
+
+Atencao <- CellStyle(wb) +
+    Font(wb, isBold = T) +
+     Fill(backgroundColor="black", foregroundColor="yellow",
+      pattern="SOLID_FOREGROUND")
+```
+
+  
+# Criação das planilhas
+Crio todas as planilhas com seus respectivos nomes no meu workbook e atribuo em variáveis.
+```{r}
+sheet.1 <- createSheet(wb, sheetName = "Docente")
+sheet.2 <- createSheet(wb, sheetName = "Cadastro")
+sheet.3 <- createSheet(wb, sheetName = "CPA")
+sheet.4 <- createSheet(wb, sheetName = "E1 - D8")
+sheet.5 <- createSheet(wb, sheetName = "E2 - D1")
+sheet.6 <- createSheet(wb, sheetName = "E2 - D3")
+sheet.7 <- createSheet(wb, sheetName = "E3 - D2")
+sheet.8 <- createSheet(wb, sheetName = "E3 - D4")
+sheet.9 <- createSheet(wb, sheetName = "E3 - D9")
+sheet.10 <- createSheet(wb, sheetName = "E4 - D5")
+sheet.11 <- createSheet(wb, sheetName = "E4 - D6")
+sheet.12 <- createSheet(wb, sheetName = "E5 - D7")
+```
+
+
+# Importação dos dados  
+Aqui leio o arquivo que já deve existir no diretório da workspace e atribuo a variável "dados" o meu banco de dados. Usei como parâmetro "stringsAsFactores = F" para ele desconsiderar dados categóricos.
+```{r}
+dados <- read.xlsx("Tabulacao_Resultado_Docente.xlsx", 
+    sheetIndex = "Tabulacao_Resultado_Docente", stringsAsFactors = F)
+```
+
+
+# Filtragem dos dados iniciais  
+Verifico quais colunas possuem valor 0, para isso eu somo os valores de cada variável com a função **apply**.  
+Então eu removo todas as variáveis que possuem valor 0: TotalG, TotalH, TotalI, TotalJ, TotalK, TotalL, TotalM, TotalN, PercG, PercH, PercI, PercJ, PercK, PercL, PercM e PercN.  
+Removo também as variáveis iniciais: Unidade, Edicao, FormularioId e FormularioApelido.  
+Permanece as variáveis perc que são maiores que 0.
+```{r echo=TRUE}
+
+#das variáveis totais
+apply(dados[,11:24],2, sum)
+
+#das variáveis perc
+apply(dados[,26:39],2, sum)
+
+#apartir do G não há valores diferentes de 0, então eu removo
+dados.Filtrados <- dados %>% 
+  select(-c(1:4,17:24,32:ncol(dados)))
+
+#renomeio as variáveis
+dados.Filtrados <- dados.Filtrados %>% 
+    rename("A" = "TotalA", "B" = "TotalB", "C" = "TotalC", "D" = "TotalD", "E" = "TotalE", "F" = "TotalF")
+```
+
+
+# Criação da planilha DOCENTE  
+Crio um novo database com base nos dados filtrados e o adiciono na planilha.
+```{r}
+docentes <- select(dados.Filtrados, -NumeroPergunta)
+
+#Adicionar a tabela docentes na planilha sheet 1
+addDataFrame(docentes, sheet.1, col.names = T, row.names = F, 
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+
+#Alinhamento das células e Filtro por Indicador
+addAutoFilter(sheet.1, cellRange = "A1:A110") #filtro na variável Indicadorss
+autoSizeColumn(sheet.1, colIndex = c(1:ncol(docentes)))
+
+```
+
+
+# Criação da planilha CADASTRO  
+Crio um novo database com base nos dados filtrados e o adiciono na planilha. O critério de seleção aqui foi definido no **filter** com base no Indicador **Cadastro**.
+```{r}
+cadastro <- select(dados.Filtrados, -NumeroPergunta)
+cadastro <- filter(cadastro, Indicador == "Cadastro")
+
+#Adicionar a tabela cadastro na planilha sheet 2ss
+addDataFrame(cadastro, sheet.2, col.names = T, row.names = F, 
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+
+#Alinhamento das células
+autoSizeColumn(sheet.2, colIndex = c(1:ncol(cadastro)))
+```
+
+
+# Filtragem de dados 2  
+Removo as variáveis: totalValidos, percA, percB,percC,percD, percE e percF. Estes não serão mais úteis para as próximas planilhas.  
+Importante ressaltar que permanece a variável **"NumeroPergunta"** apenas para critério de seleção em certas planilhas, então nas planilhas que não precisa desta seleção eu removo manualmente essa variável com a função **"<- select(cpa, -NumeroPergunta)"**
+```{r}
+    dados.Filtrados.2 <- select(dados.Filtrados, -c(6,13:ncol(dados.Filtrados)))
+```
+
+
+# Criação da planilha CPA  
+Crio um novo database com base nos **dados filtrados 2** e o adiciono na planilha.  
+O critério de seleção aqui foi definido no **filter** com base no Indicador **Cpa**.
+```{r message=FALSE, warning=FALSE}
+cpa <- filter(dados.Filtrados.2, Indicador == "Cpa")
+cpa <- select(cpa, -NumeroPergunta)
+
+cpa <- renomear.Respostas.1(cpa) # A - Excelente, B - Muito bom, C - Regular, D - Insuficiente, E - Não se aplica, F - Não sei responder
+cpa <- excluir.colunas.1(cpa) #exclui as colunas que possuem valores nulos.
+
+#criação de tabela total auxiliar
+cpa.Total <- tabela.auxilar(cpa)
+
+#grafico
+NomeGrafico <- "./graficos/CPA.png"
+Texto <- paste(cpa$Dimensao[1], sep = "\n", "Docentes",cpa$Area[1])
+gerar.Grafico(cpa.Total,NomeGrafico, Texto) #função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+cpa.Total <- select(cpa.Total, -porcentual)
+cpa.Total <- t(cpa.Total)
+
+#salvar planilha
+addDataFrame(cpa, sheet.3, col.names = T, row.names = F, 
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+
+autoSizeColumn(sheet.3, colIndex = c(1:ncol(cpa)))
+
+addPicture(NomeGrafico, sheet.3, startRow = 7, startColumn = 4)
+
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(cpa.Total, sheet.3, col.names = F, row.names = F, 
+             startRow = 15, startColumn = 5)
+```
+
+
+# Criação do eixo 1  
+Esse filtro por Eixo é necessário para futuramente apenas selecionar por **Dimensão** e **NumeroPergunta** as próximas tabelas.
+```{r}
+eixo1 <- filter(dados.Filtrados.2, Indicador == "Eixo: 1")
+eixo1 <- renomear.Respostas.2(eixo1)
+eixo1 <- excluir.colunas.2(eixo1) #excluo colunas mas não a variável "NumeroPergunta", isso será feito nas tabelas
+```
+
+
+## Eixo 1 - Dimensão 8 - Questão 8  
+Crio um novo database com base no **eixo 1** e o adiciono na planilha **sheet 4 E1 - D8**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao8 <- filter(eixo1, NumeroPergunta == 8)
+questao8 <- select(questao8, -4) #deleto as variáveis NumeroPergunta e Algumas Vezes, não serão mais úteis e interferem na função renomear.Respostas.3
+questao8 <- renomear.Respostas.3(questao8) # A - Sim, B - Não 
+questao8 <- excluir.colunas.1(questao8)
+
+#criação da tabela total auxiliar
+questao8.Total <- tabela.auxilar(questao8)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo1_Dim8_Q8.png"
+Texto <- paste(questao8$Dimensao, sep = "\n", "Docentes",questao8$Area)
+gerar.Grafico(questao8.Total,NomeGrafico, Texto) # função
+dev.off()
+
+#salvar planilha
+addDataFrame(questao8, sheet.4, col.names = T, row.names = F, 
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.4, colIndex = c(1:ncol(questao8)))
+addPicture(NomeGrafico, sheet.4, startRow = 5, startColumn = 4)
+```
+
+
+## Eixo 1 - Dimensão 8 - Questões 9 - 14, 16 e 18  
+Crio um novo database com base no **eixo 1** e o adiciono na planilha **sheet 4 E1 - D8**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao9 <- filter(eixo1, NumeroPergunta %in% c(9,10,11,12,13,14,16,18))
+questao9 <- select(questao9, -4) #deleto a variável NumeroPergunta
+
+#criação da tabela total auxiliar
+questao9.Total <- tabela.auxilar(questao9)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo1_Dim8_Q9-14-16-18.png"
+Texto <- paste(questao9$Dimensao, sep = "\n", "Docentes",questao9$Area)
+gerar.Grafico(questao9.Total, NomeGrafico, Texto) #função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao9.Total <- select(questao9.Total, -porcentual)
+questao9.Total <- t(questao9.Total)
+
+#salvar planilha
+addDataFrame(questao9, sheet.4, col.names = T, row.names = F, 
+             startRow = 30, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.4, colIndex = c(1:ncol(questao9)))
+addPicture(NomeGrafico, sheet.4, startRow = 41, startColumn = 4)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao9.Total, sheet.4, col.names = F, row.names = F, 
+             startRow = 49, startColumn = 1)
+
+```
+
+
+
+## Eixo 1 - Dimensão 8 - Questão 15  
+Crio um novo database com base no **eixo 1** e o adiciono na planilha **sheet 4 E1 - D8**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao15 <- filter(eixo1, NumeroPergunta == 15)
+questao15 <- select(questao15, -4) #deleto a variável NumeroPergunta 
+
+#criação da tabela total auxiliar
+questao15.Total <- tabela.auxilar(questao15)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo1_Dim8_Q15.png"
+Texto <- paste(questao15$Dimensao, sep = "\n", "Docentes",questao15$Area)
+gerar.Grafico(questao15.Total,NomeGrafico, Texto) #função
+dev.off()
+
+#salvar planilha
+addDataFrame(questao15, sheet.4, col.names = T, row.names = F, 
+             startRow = 66, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.4, colIndex = c(1:ncol(questao15)))
+addPicture(NomeGrafico, sheet.4, startRow = 69, startColumn = 4)
+```
+
+
+## Eixo 1 - Dimensão 8 - Questão 17  
+Crio um novo database com base no **eixo 1** e o adiciono na planilha **sheet 4 E1 - D8**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao17 <- filter(eixo1, NumeroPergunta == 17)
+questao17 <- select(questao17, -4) #deleto a variável NumeroPergunta 
+
+#criação da tabela total auxiliar
+questao17.Total <- tabela.auxilar(questao17)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo1_Dim8_Q17.png"
+Texto <- paste(questao17$Dimensao, sep = "\n", "Docentes",questao17$Area)
+gerar.Grafico(questao17.Total,NomeGrafico, Texto) #função
+dev.off()
+
+#salvar planilha
+addDataFrame(questao17, sheet.4, col.names = T, row.names = F, 
+             startRow = 94, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.4, colIndex = c(1:ncol(questao17)))
+addPicture(NomeGrafico, sheet.4, startRow = 97, startColumn = 4)
+```
+
+
+## Eixo 1 - Dimensão 8 -  Questão 19  
+Crio um novo database com base no **eixo 1** e o adiciono na planilha **sheet 4 E1 - D8**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao19 <- filter(eixo1, NumeroPergunta == 19)
+questao19 <- select(questao19, -4) #deleto a variável NumeroPergunta 
+questao19 <- excluir.colunas.1(questao19)
+
+#criação da tabela total auxiliar
+questao19.Total <- tabela.auxilar(questao19)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo1_Dim8_Q19.png"
+Texto <- paste(questao19$Dimensao, sep = "\n", "Docentes",questao19$Area)
+gerar.Grafico(questao19.Total,NomeGrafico, Texto)#função
+dev.off()
+
+#salvar planilha
+addDataFrame(questao19, sheet.4, col.names = T, row.names = F,
+             startRow = 122, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.4, colIndex = c(1:ncol(questao19)))
+addPicture(NomeGrafico, sheet.4, startRow = 125, startColumn = 4)
+```
+
+
+# Criação do eixo 2  
+Esse filtro por Eixo é necessário para futuramente apenas selecionar por **Dimensão** e **NumeroPergunta** as próximas tabelas.
+```{r}
+eixo2 <- filter(dados.Filtrados.2, Indicador == "Eixo: 2")
+#todas as perguntas do eixo 2 possuem o mesmo nome: A - Excelente, B - Muito bom, C - Regular, D - Insuficiente, E - Não se aplica, F - Não sei responder
+eixo2 <- renomear.Respostas.1(eixo2)
+eixo2 <- excluir.colunas.2(eixo2)#excluo colunas mas não a variável "NumeroPergunta", isso será feito nas tabelas
+```
+
+
+## Eixo 2 - Dimensão 1 - questões 20 a 25  
+Crio um novo database com base no **eixo 2** e o adiciono na planilha **sheet 5 E2 - D1**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao20 <- filter(eixo2, Dimensao == "Dimensão: 1" & NumeroPergunta %in% c(20:25))
+questao20 <- select(questao20, -4) #deleto a variável NumeroPergunta 
+questao20 <- excluir.colunas.1(questao20) 
+
+#criação da tabela total auxiliar
+questao20.Total <- tabela.auxilar(questao20)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo2_Dim1_Q20-25.png"
+Texto <- paste(questao20$Dimensao, sep = "\n", "Docentes",questao20$Area)
+gerar.Grafico(questao20.Total,NomeGrafico, Texto)
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao20.Total <- select(questao20.Total, -porcentual)
+questao20.Total <- t(questao20.Total)
+
+#salvar planilha
+addDataFrame(questao20, sheet.5, col.names = T, row.names = F,
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.5, colIndex = c(1:ncol(questao20)))
+addPicture(NomeGrafico, sheet.5, startRow = 10, startColumn = 3)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao20.Total, sheet.5, col.names = F, row.names = F, 
+             startRow = 16, startColumn = 5)
+```
+
+
+## Eixo 2 - Dimensão 1 - questões 27 e 28  
+Crio um novo database com base no **eixo 2** e o adiciono na planilha **sheet 5 E2 - D1**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao27 <- filter(eixo2, Dimensao == "Dimensão: 1" & NumeroPergunta %in% c(27,28))
+questao27 <- select(questao27, -4) #deleto a variável NumeroPergunta 
+questao27 <- excluir.colunas.1(questao27)
+
+#criação da tabela total auxiliar
+questao27.Total <- tabela.auxilar(questao27)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo2_Dim1_Q27-28.png"
+Texto <- paste(questao27$Dimensao, sep = "\n", "Docentes",questao27$Area)
+gerar.Grafico(questao27.Total,NomeGrafico, Texto) #função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao27.Total <- select(questao27.Total, -porcentual)
+questao27.Total <- t(questao27.Total)
+
+#salvar planilha
+addDataFrame(questao27, sheet.5, col.names = T, row.names = F,
+             startRow = 36, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.5, colIndex = c(1:ncol(questao27)))
+addPicture(NomeGrafico, sheet.5, startRow = 40, startColumn = 3)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao27.Total, sheet.5, col.names = F, row.names = F, 
+             startRow = 45, startColumn = 5)
+```
+
+
+## Eixo 2 - Dimensão 1 - questão 22  
+Crio um novo database com base no **eixo 2** e o adiciono na planilha **sheet 5 E2 - D1**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao22 <- filter(eixo2, Dimensao == "Dimensão: 1" & NumeroPergunta == 22)
+questao22 <- select(questao22, -4) #deleto a variável NumeroPergunta 
+questao22 <- excluir.colunas.1(questao22)
+
+#criação da tabela total auxiliar
+questao22.Total <- tabela.auxilar(questao22)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo2_Dim1_Q22.png"
+Texto <- paste(questao22$Dimensao, sep = "\n", "Docentes",questao22$Area)
+gerar.Grafico(questao22.Total,NomeGrafico, Texto)#função
+dev.off()
+
+#salvar planilha
+addDataFrame(questao22, sheet.5, col.names = T, row.names = F,
+             startRow = 66, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.5, colIndex = c(1:ncol(questao22)))
+addPicture(NomeGrafico, sheet.5, startRow = 69, startColumn = 3)
+```
+
+
+## Eixo 2 - Dimensão 1 - questão 26
+Crio um novo database com base no **eixo 2** e o adiciono na planilha **sheet 5 E2 - D1**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao26 <- filter(eixo2, Dimensao == "Dimensão: 1" & NumeroPergunta == 26)
+questao26 <- select(questao26, -4) #deleto a variável NumeroPergunta 
+questao26 <- excluir.colunas.1(questao26)
+
+#criação da tabela total auxiliar
+questao26.Total <- tabela.auxilar(questao26)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo2_Dim1_Q26.png"
+Texto <- paste(questao26$Dimensao, sep = "\n", "Docentes",questao26$Area)
+gerar.Grafico(questao26.Total,NomeGrafico, Texto)#função
+dev.off()
+
+#salvar planilha
+addDataFrame(questao26, sheet.5, col.names = T, row.names = F,
+             startRow = 95, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.5, colIndex = c(1:ncol(questao26)))
+addPicture(NomeGrafico, sheet.5, startRow = 98, startColumn = 3)
+```
+
+
+## Eixo 2 - Dimensão 3 - questões 29 a 32  
+Crio um novo database com base no **eixo 2** e o adiciono na planilha **sheet 5 E2 - D1**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao29 <- filter(eixo2, Dimensao == "Dimensão: 3" & NumeroPergunta %in% c(29:32))
+questao29 <- select(questao29, -4) #deleto a variável NumeroPergunta 
+questao29 <- excluir.colunas.1(questao29)
+
+#criação da tabela total auxiliar
+questao29.Total <- tabela.auxilar(questao29)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo2_Dim3_Q29-32.png"
+Texto <- paste(questao29$Dimensao, sep = "\n", "Docentes",questao29$Area)
+gerar.Grafico(questao29.Total, NomeGrafico, Texto)#função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao29.Total <- select(questao29.Total, -porcentual)
+questao29.Total <- t(questao29.Total)
+
+#salvar planilha
+addDataFrame(questao29, sheet.6, col.names = T, row.names = F,
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.6, colIndex = c(1:ncol(questao29)))
+addPicture(NomeGrafico, sheet.6, startRow = 8, startColumn = 3)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao29.Total, sheet.6, col.names = F, row.names = F,
+             startRow = 10, startColumn = 5)
+```
+
+
+# Criação do Eixo 3  
+Esse filtro por Eixo é necessário para futuramente apenas selecionar por **Dimensão** e **NumeroPergunta** as próximas tabelas.
+```{r}
+eixo3 <- filter(dados.Filtrados.2, Indicador == "Eixo: 3")
+eixo3 <- renomear.Respostas.1(eixo3)
+eixo3 <- excluir.colunas.2(eixo3)
+```
+
+
+## Eixo 3 - Dimensão 2 - questões 33 a 46
+Crio um novo database com base no **eixo 3** e o adiciono na planilha **sheet 7 E3 - D2**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao33 <- filter(eixo3, Dimensao == "Dimensão: 2" & NumeroPergunta %in% c(33:46))
+questao33 <- select(questao33, -4) #deleto a variável NumeroPergunta 
+questao33 <- excluir.colunas.1(questao33)
+
+#criação da tabela total auxiliar
+questao33.Total <- tabela.auxilar(questao33)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo3_Dim2_Q33-46.png"
+Texto <- paste(questao33$Dimensao, sep = "\n", "Docentes",questao33$Area)
+gerar.Grafico(questao33.Total, NomeGrafico, Texto)#função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao33.Total <- select(questao33.Total, -porcentual)
+questao33.Total <- t(questao33.Total)
+
+#salvar planilha
+addDataFrame(questao33, sheet.7, col.names = T, row.names = F,
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.7, colIndex = c(1:ncol(questao33)))
+addPicture(NomeGrafico, sheet.7, startRow = 18, startColumn = 4)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao29.Total, sheet.7, col.names = F, row.names = F,
+             startRow = 18, startColumn = 5)
+```
+
+
+##Eixo 3 - Dimensão 4 - questões 47 a 63  
+Crio um novo database com base no **eixo 3** e o adiciono na planilha **sheet 8 E3 - D4**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao47 <- filter(eixo3, Dimensao == "Dimensão: 4" & NumeroPergunta %in% c(47:63))
+questao47 <- select(questao47, -4) #deleto a variável NumeroPergunta 
+questao47 <- excluir.colunas.1(questao47)
+
+#criação da tabela total auxiliar
+questao47.Total <- tabela.auxilar(questao47)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo3_Dim4_Q47-63.png"
+Texto <- paste(questao47$Dimensao, sep = "\n", "Docentes",questao47$Area)
+gerar.Grafico(questao47.Total, NomeGrafico, Texto)#função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao47.Total <- select(questao47.Total, -porcentual)
+questao47.Total <- t(questao47.Total)
+
+#salvar planilha
+addDataFrame(questao47, sheet.8, col.names = T, row.names = F,
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.8, colIndex = c(1:ncol(questao47)))
+addPicture(NomeGrafico, sheet.8, startRow = 21, startColumn = 4)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao47.Total, sheet.8, col.names = F, row.names = F,
+             startRow = 21, startColumn = 5)
+```
+
+## Eixo 3 - Dimensão 9 - questões 64 a 68  
+Crio um novo database com base no **eixo 3** e o adiciono na planilha **sheet 9 E3 - D9**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao64 <- filter(eixo3, Dimensao == "Dimensão: 9" & NumeroPergunta %in% c(64:68))
+questao64 <- select(questao64, -4) #deleto a variável NumeroPergunta 
+questao64 <- excluir.colunas.1(questao64)
+
+#criação da tabela total auxiliar
+questao64.Total <- tabela.auxilar(questao64)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo3_Dim4_Q64-68.png"
+Texto <- paste(questao64$Dimensao, sep = "\n", "Docentes",questao64$Area)
+gerar.Grafico(questao64.Total, NomeGrafico, Texto) #função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao64.Total <- select(questao64.Total, -porcentual)
+questao64.Total <- t(questao64.Total)
+
+#salvar planilha
+addDataFrame(questao64, sheet.9, col.names = T, row.names = F,
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.9, colIndex = c(1:ncol(questao64)))
+addPicture(NomeGrafico, sheet.9, startRow = 9, startColumn = 4)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao64.Total, sheet.9, col.names = F, row.names = F,
+             startRow = 9, startColumn = 5)
+```
+
+
+# Criação do eixo 4  
+Esse filtro por Eixo é necessário para futuramente apenas selecionar por **Dimensão** e **NumeroPergunta** as próximas tabelas.
+```{r}
+eixo4 <- filter(dados.Filtrados.2, Indicador == "Eixo: 4")
+eixo4 <- renomear.Respostas.1(eixo4)
+eixo4 <- excluir.colunas.2(eixo4)
+```
+
+
+## Eixo 4 - Dimensão 5 - questões 69 a 72  
+Crio um novo database com base no **dados.Filtrados**, porque este database possui as variáveis percentuais, das quais será necessário nesta tabela específica.  
+E o adiciono na planilha **sheet 10 E4 - D5**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta e dimensão.
+```{r message=FALSE, warning=FALSE}
+questao69 <- filter(dados.Filtrados, Dimensao == "Dimensão: 5" & NumeroPergunta %in% c(69:72))
+questao69 <-renomear.Respostas.1(questao69)
+questao69 <- select(questao69, -c(4,6,13)) #excluo as variáveis: "NumeroPergunta", "Respostas" e "TotalValidos"
+questao69 <- excluir.colunas.1(questao69)
+
+# criação da tabela de porcentagem
+questao69.perc <- select(questao69, c(10:ncol(questao69)))
+i <- 1
+while(i <= ncol(questao69.perc)){
+    questao69.perc[,i] <- paste(round(questao69.perc[,i]),"%", sep = "")
+    i <- i + 1
+    i
+}
+
+#remove os perc da tabela principal
+questao69 <- select(questao69, -c(10:ncol(questao69)))
+
+#criação da tabela total auxiliar
+questao69.Total <- tabela.auxilar(questao69)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo4_Dim2_Q69-72.png"
+Texto <- paste(questao69$Dimensao, sep = "\n", "Docentes",questao69$Area)
+gerar.Grafico(questao69.Total, NomeGrafico, Texto) #função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao69.Total <- select(questao69.Total, -porcentual)
+questao69.Total <- t(questao69.Total)
+
+#salvar planilha
+addDataFrame(questao69, sheet.10, col.names = T, row.names = F,
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.10, colIndex = c(1:ncol(questao69)))
+addPicture(NomeGrafico, sheet.10, startRow = 7, startColumn = 3)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao69.Total, sheet.10, col.names = F, row.names = F,
+             startRow = 7, startColumn = 5)
+#adiciono a tabela de percentuais
+addDataFrame(questao69.perc, sheet.10, col.names = T, row.names = F,
+             startRow = 14, startColumn = 5)
+```     
+
+
+## Eixo 4 - Dimensão 6 - questão 73  
+Crio um novo database com base no **eixo 4** e o adiciono na planilha **sheet 11 E4 - D6**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.
+```{r message=FALSE, warning=FALSE}
+questao73 <- filter(eixo4, Dimensao == "Dimensão: 6" & NumeroPergunta == 73)
+questao73 <- select(questao73, -4) #deleto a variável NumeroPergunta 
+questao73 <- excluir.colunas.1(questao73)
+
+#criação da tabela total auxiliar
+questao73.Total <- tabela.auxilar(questao73)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo4_Dim6_Q73.png"
+Texto <- paste(questao73$Dimensao, sep = "\n", "Docentes",questao73$Area)
+gerar.Grafico(questao73.Total, NomeGrafico, Texto)#função
+dev.off()
+
+#salvar planilha
+addDataFrame(questao73, sheet.11, col.names = T, row.names = F,
+             startRow = 1, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.11, colIndex = c(1:ncol(questao73)))
+addPicture(NomeGrafico, sheet.11, startRow = 4, startColumn = 3)
+```
+
+
+## Eixo 4 - Dimensão 6 - questões 74,75,77,78  
+Crio um novo database com base no **eixo 4** e o adiciono na planilha **sheet 11 E4 - D6**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.
+```{r message=FALSE, warning=FALSE}
+questao74 <- filter(eixo4, Dimensao == "Dimensão: 6" & NumeroPergunta %in% c(74,75,77,78))
+questao74 <- select(questao74, -4) #deleto a variável NumeroPergunta 
+questao74 <- excluir.colunas.1(questao74)
+
+#criação da tabela total auxiliar
+questao74.Total <- tabela.auxilar(questao74)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo4_Dim6_Q74-78.png"
+Texto <- paste(questao74$Dimensao, sep = "\n", "Docentes",questao74$Area)
+gerar.Grafico(questao74.Total, NomeGrafico, Texto) #função
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao74.Total <- select(questao74.Total, -porcentual)
+questao74.Total <- t(questao74.Total)
+
+#salvar planilha
+addDataFrame(questao74, sheet.11, col.names = T, row.names = F,
+             startRow = 29, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.11, colIndex = c(1:ncol(questao74)))
+addPicture(NomeGrafico, sheet.11, startRow = 35, startColumn = 4)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao74.Total, sheet.11, col.names = F, row.names = F,
+             startRow = 35, startColumn = 5)
+```
+
+
+## Eixo 4 - Dimensão 6 - questão 76  
+Crio um novo database com base no **eixo 4** e o adiciono na planilha **sheet 11 E4 - D6**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.
+```{r message=FALSE, warning=FALSE}
+questao76 <- filter(eixo4, Dimensao == "Dimensão: 6" & NumeroPergunta == 76)
+questao76 <- select(questao76, -4) #deleto a variável NumeroPergunta 
+questao76 <- excluir.colunas.1(questao76)
+
+#criação da tabela total auxiliar
+questao76.Total <- tabela.auxilar(questao76)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo4_Dim6_Q76.png"
+Texto <- paste(questao76$Dimensao, sep = "\n", "Docentes",questao76$Area)
+gerar.Grafico(questao76.Total, NomeGrafico, Texto)
+dev.off()
+
+#salvar planilha
+addDataFrame(questao76, sheet.11, col.names = T, row.names = F,
+             startRow = 60, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.11, colIndex = c(1:ncol(questao76)))
+addPicture(NomeGrafico, sheet.11, startRow = 63, startColumn = 4)
+```
+
+
+## Eixo 4 - Dimensão 6 - questões 79 - 82  
+Crio um novo database com base no **eixo 4** e o adiciono na planilha **sheet 11 E4 - D6**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.
+```{r message=FALSE, warning=FALSE}
+questao79 <- filter(eixo4, Dimensao == "Dimensão: 6" & NumeroPergunta %in% c(79:82))
+questao79 <- select(questao79, -4) #deleto a variável NumeroPergunta 
+questao79 <- excluir.colunas.1(questao79)
+
+#criação da tabela total auxiliar
+questao79.Total <- tabela.auxilar(questao79)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo4_Dim6_Q79-82.png"
+Texto <- paste(questao79$Dimensao, sep = "\n", "Docentes",questao79$Area)
+gerar.Grafico(questao79.Total, NomeGrafico, Texto)#funcao
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao79.Total <- select(questao79.Total, -porcentual)
+questao79.Total <- t(questao79.Total)
+
+#salvar planilha
+addDataFrame(questao79, sheet.11, col.names = T, row.names = F,
+             startRow = 88, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.11, colIndex = c(1:ncol(questao79)))
+addPicture(NomeGrafico, sheet.11, startRow = 95, startColumn = 4)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao79.Total, sheet.11, col.names = F, row.names = F,
+             startRow = 95, startColumn = 5)
+```
+
+
+# Criação do eixo 5  
+Esse filtro por Eixo é necessário para futuramente apenas selecionar por **Dimensão** e **NumeroPergunta** as próximas tabelas.
+```{r}
+eixo5 <- filter(dados.Filtrados.2, Indicador == "Eixo: 5")
+eixo5 <- renomear.Respostas.1(eixo5)
+eixo5 <- excluir.colunas.2(eixo5)
+```
+
+
+## Eixo 5 - Dimensão 7 - questão 85  
+Crio um novo database com base no **eixo 1** e o adiciono na planilha **sheet 12 E5 - D7**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.
+```{r message=FALSE, warning=FALSE}
+questao85 <- filter(eixo5, Dimensao == "Dimensão: 7" & NumeroPergunta == 85)
+questao85 <- select(questao85, -4) #deleto a variável NumeroPergunta 
+questao85 <- excluir.colunas.1(questao85)
+
+#criação da tabela total auxiliar
+questao85.Total <- tabela.auxilar(questao85)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo5_Dim7_Q85.png"
+Texto <- paste(questao85$Dimensao, sep = "\n", "Docentes",questao85$Area)
+gerar.Grafico(questao85.Total, NomeGrafico, Texto)
+dev.off()
+
+#salvar planilha
+    #adiciono um título de aviso
+xlsx.addTitle(sheet.12, rowIndex=1, title="Em relação à secretaria acadêmica",
+      titleStyle = TITLE_STYLE)
+addDataFrame(questao85, sheet.12, col.names = T, row.names = F,
+             startRow = 2, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.12, colIndex = c(1:ncol(questao85)))
+addPicture(NomeGrafico, sheet.12, startRow = 5, startColumn = 1)
+```
+
+
+## Eixo 5 - Dimensão 7 - questões 86 - 88 e 89  
+Crio um novo database com base no **eixo 1** e o adiciono na planilha **sheet 12 E5 - D7**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.  
+Faço a questão 89 separado mas adiciono logo abaixo da tabela das questões 86 a 88
+```{r message=FALSE, warning=FALSE}
+questao86 <- filter(eixo5, Dimensao == "Dimensão: 7" & NumeroPergunta %in% c(86:88))
+questao86 <- select(questao86, -4) #deleto a variável NumeroPergunta 
+questao86 <- excluir.colunas.1(questao86)
+
+questao89 <-filter(eixo5, Dimensao == "Dimensão: 7" & NumeroPergunta == 89)
+questao89 <- select(questao89, -4) #deleto a variável NumeroPergunta 
+questao89 <- excluir.colunas.1(questao89)
+
+
+#criação da tabela total auxiliar
+questao86.Total <- tabela.auxilar(questao86)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo5_Dim7_Q86-89.png"
+Texto <- paste(questao86$Dimensao, sep = "\n", "Docentes",questao86$Area)
+gerar.Grafico(questao86.Total, NomeGrafico, Texto)#funcao
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao86.Total <- select(questao86.Total, -porcentual)
+questao86.Total <- t(questao86.Total)
+
+#salvar planilha
+    #Adiciono os títulos na planilha
+xlsx.addTitle(sheet.12, rowIndex=30, title="Em relação aos espaços de",
+      titleStyle = TITLE_STYLE)
+xlsx.addTitle(sheet.12, rowIndex=31, title="convivência, segurança e limpeza",
+      titleStyle = TITLE_STYLE)
+
+addDataFrame(questao86, sheet.12, col.names = T, row.names = F,
+             startRow = 32, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.12, colIndex = c(1:ncol(questao86)))
+addPicture(NomeGrafico, sheet.12, startRow = 41, startColumn = 1)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao86.Total, sheet.12, col.names = F, row.names = F,
+             startRow = 41, startColumn = 5)
+xlsx.addTitle(sheet.12, rowIndex=36, title="Não entrou no gráfico",
+      titleStyle = TITLE_STYLE)
+addDataFrame(questao89, sheet.12, col.names = F, row.names = F, startRow = 37, startColumn = 1)
+```
+
+
+## Eixo 5 - Dimensão 7 - questões 90 - 94  
+Crio um novo database com base no **eixo 5** e o adiciono na planilha **sheet 12 E5 - D7**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.  
+```{r message=FALSE, warning=FALSE}
+questao90 <- filter(eixo5, Dimensao == "Dimensão: 7" & NumeroPergunta %in% c(90:94))
+questao90 <- select(questao90, -4) #deleto a variável NumeroPergunta 
+questao90 <- excluir.colunas.1(questao90)
+
+#criação da tabela total auxiliar
+questao90.Total <- tabela.auxilar(questao90)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo5_Dim7_Q90-94.png"
+Texto <- paste(questao90$Dimensao, sep = "\n", "Docentes",questao90$Area)
+gerar.Grafico(questao90.Total, NomeGrafico, Texto)#funcao
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao90.Total <- select(questao90.Total, -porcentual)
+questao90.Total <- t(questao90.Total)
+
+#salvar planilha
+    #Adiciono os títulos na planilha
+xlsx.addTitle(sheet.12, rowIndex=66, title="Em relação às salas de aula,",
+      titleStyle = TITLE_STYLE)
+xlsx.addTitle(sheet.12, rowIndex=67, title="qual a sua avaliação quanto à:",
+      titleStyle = TITLE_STYLE)
+addDataFrame(questao90, sheet.12, col.names = T, row.names = F,
+             startRow = 68, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.12, colIndex = c(1:ncol(questao90)))
+addPicture(NomeGrafico, sheet.12, startRow = 75, startColumn = 1)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao90.Total, sheet.12, col.names = F, row.names = F,
+             startRow = 75, startColumn = 5)
+```
+
+
+## Eixo 5 - Dimensão 7 - questões 95 - 99  
+Crio um novo database com base no **eixo 5** e o adiciono na planilha **sheet 12 E5 - D7**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.  
+```{r message=FALSE, warning=FALSE}
+questao95 <- filter(eixo5, Dimensao == "Dimensão: 7" & NumeroPergunta %in% c(95:99))
+questao95 <- select(questao95, -4) #deleto a variável NumeroPergunta 
+questao95 <- excluir.colunas.1(questao95)
+
+#criação da tabela total auxiliar
+questao95.Total <- tabela.auxilar(questao95)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo5_Dim7_Q95-99.png"
+Texto <- paste(questao95$Dimensao, sep = "\n", "Docentes",questao95$Area)
+gerar.Grafico(questao95.Total, NomeGrafico, Texto)#funcao
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao95.Total <- select(questao95.Total, -porcentual)
+questao95.Total <- t(questao95.Total)
+
+#salvar planilha
+    #Adiciono os títulos na planilha
+xlsx.addTitle(sheet.12, rowIndex=101, title="Em relação aos laboratórios,",
+      titleStyle = TITLE_STYLE)
+xlsx.addTitle(sheet.12, rowIndex=102, title="qual a sua avaliação quanto à:",
+      titleStyle = TITLE_STYLE)
+addDataFrame(questao95, sheet.12, col.names = T, row.names = F,
+             startRow = 103, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.12, colIndex = c(1:ncol(questao95)))
+addPicture(NomeGrafico, sheet.12, startRow = 112, startColumn = 1)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao95.Total, sheet.12, col.names = F, row.names = F,
+             startRow = 112, startColumn = 5)
+```
+
+
+## Eixo 5 - Dimensão 7 - questões 100 - 109  
+Crio um novo database com base no **eixo 5** e o adiciono na planilha **sheet 12 E5 - D7**.  
+O critério de seleção foi definido no **filter** com base no número de pergunta.  
+```{r message=FALSE, warning=FALSE}
+questao100 <- filter(eixo5, Dimensao == "Dimensão: 7" & NumeroPergunta %in% c(100:109))
+questao100 <- select(questao100, -4) #deleto a variável NumeroPergunta 
+questao100 <- excluir.colunas.1(questao100)
+
+#criação da tabela total auxiliar
+questao100.Total <- tabela.auxilar(questao100)
+
+#grafico
+NomeGrafico <- "./graficos/Eixo5_Dim7_Q100-109.png"
+Texto <- paste(questao100$Dimensao, sep = "\n", "Docentes",questao100$Area)
+gerar.Grafico(questao100.Total, NomeGrafico, Texto)#funcao
+dev.off()
+
+#formato a tabela auxiliar para ser exibida na planilha
+questao100.Total <- select(questao100.Total, -porcentual)
+questao100.Total <- t(questao100.Total)
+
+#salvar planilha
+    #Adiciono os títulos na planilha
+xlsx.addTitle(sheet.12, rowIndex=138, title="Em relação às bibliotecas,",
+      titleStyle = TITLE_STYLE)
+xlsx.addTitle(sheet.12, rowIndex=139, title="qual a sua avaliação quanto à:",
+      titleStyle = TITLE_STYLE)
+addDataFrame(questao100, sheet.12, col.names = T, row.names = F,
+             startRow = 140, startColumn = 1, colnamesStyle = nomes.colunas)
+autoSizeColumn(sheet.12, colIndex = c(1:ncol(questao100)))
+addPicture(NomeGrafico, sheet.12, startRow = 152, startColumn = 1)
+#a tabela auxiliar é levada para a planilha com os nomes das coluna e linha FALSO, caso contrário não faria sentido.
+addDataFrame(questao100.Total, sheet.12, col.names = F, row.names = F,
+             startRow = 152, startColumn = 5)
+```
+
+
+# Exportando e exibindo
+```{r}
+# save the workbook to an Excel file
+saveWorkbook(wb, filename)
+xlsx.openFile(filename)# View the file
+```
+
+
